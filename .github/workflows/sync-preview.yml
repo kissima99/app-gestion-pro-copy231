@@ -1,0 +1,39 @@
+name: Sync preview branch
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-preview
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Force-update preview from master
+        run: |
+          git fetch origin master
+          # Create local preview branch if it doesn't exist
+          if git show-ref --verify --quiet refs/heads/preview; then
+            git checkout preview
+          else
+            git checkout -b preview
+          fi
+          git reset --hard origin/master
+          git push --force origin preview
