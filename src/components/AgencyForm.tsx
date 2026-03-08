@@ -81,6 +81,32 @@ export const AgencyForm = ({ agency, setAgency }: Props) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label htmlFor="agency-mail" className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-primary" /> Mail
+                </Label>
+                <Input 
+                  id="agency-mail"
+                  type="email"
+                  value={agency.email || ''} 
+                  onChange={(e) => setAgency({...agency, email: e.target.value})}
+                  placeholder="contact@agence.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="agency-rccm" className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-primary" /> RC (RCCM)
+                </Label>
+                <Input 
+                  id="agency-rccm"
+                  value={agency.rccm || ''} 
+                  onChange={(e) => setAgency({...agency, rccm: e.target.value})}
+                  placeholder="SN DKR 2024 A 00000"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label htmlFor="agency-ninea" className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-primary" /> NINEA
                 </Label>

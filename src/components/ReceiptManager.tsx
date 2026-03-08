@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Receipt, Tenant, Owner, Expense, Agency } from '../types/rental';
 import { generateReceiptPDF } from '../lib/pdf-service';
-import { Receipt as ReceiptIcon, Download, TrendingUp, Wallet, User, Trash2 } from 'lucide-react';
+import { Receipt as ReceiptIcon, Download, TrendingUp, Wallet, Trash2 } from 'lucide-react';
 
 interface Props {
   receipts: Receipt[];
@@ -60,7 +60,7 @@ export const ReceiptManager = ({ receipts, onAdd, onDelete, tenants, owners, exp
 
     const result = await onAdd(receiptData);
     if (result) {
-      generateReceiptPDF(result, agency);
+      await generateReceiptPDF(result, agency);
       setAmountInput(''); 
       setSelectedTenantId('');
     }
@@ -176,7 +176,7 @@ export const ReceiptManager = ({ receipts, onAdd, onDelete, tenants, owners, exp
                     <td className="p-3">{r.tenantName}</td>
                     <td className="p-3 font-bold">{formatFCFA(Number(r.amount))} FCFA</td>
                     <td className="p-3 text-right flex justify-end gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => generateReceiptPDF(r, agency)}>
+                      <Button size="icon" variant="ghost" onClick={() => void generateReceiptPDF(r, agency)}>
                         <Download className="w-4 h-4" />
                       </Button>
                       <Button size="icon" variant="ghost" onClick={() => onDelete(r.id!)}>
