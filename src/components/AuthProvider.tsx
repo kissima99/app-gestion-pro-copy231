@@ -20,18 +20,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (session) {
         setSession(session);
       } else {
-        // Mock session for test phase
-        setSession({
-          user: {
-            id: 'demo-user-id',
-            email: 'demo@test.com',
-            user_metadata: { full_name: 'Utilisateur Test' }
-          },
-          access_token: '',
-          refresh_token: '',
-          expires_in: 0,
-          token_type: '',
-        } as any);
+        setSession(null);
       }
       setLoading(false);
     });
@@ -41,13 +30,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (session) {
         setSession(session);
       } else {
-        setSession({
-          user: { id: 'demo-user-id', email: 'demo@test.com' },
-          access_token: '',
-          refresh_token: '',
-          expires_in: 0,
-          token_type: '',
-        } as any);
+        setSession(null);
       }
       setLoading(false);
     });
