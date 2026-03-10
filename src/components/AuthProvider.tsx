@@ -17,13 +17,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Initial check
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+      if (session) {
+        setSession(session);
+      } else {
+        // Mock session for test phase
+        setSession({
+          user: {
+            id: 'demo-user-id',
+            email: 'demo@test.com',
+            user_metadata: { full_name: 'Utilisateur Test' }
+          },
+          access_token: '',
+          refresh_token: '',
+          expires_in: 0,
+          token_type: '',
+        } as any);
+      }
       setLoading(false);
     });
 
     // Listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      if (session) {
+        setSession(session);
+      } else {
+        setSession({
+          user: { id: 'demo-user-id', email: 'demo@test.com' },
+          access_token: '',
+          refresh_token: '',
+          expires_in: 0,
+          token_type: '',
+        } as any);
+      }
       setLoading(false);
     });
 
