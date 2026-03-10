@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { useAuth } from '@/components/AuthProvider';
 
 // Utilitaires pour la conversion de casse
 const toSnakeCase = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
@@ -18,6 +19,8 @@ const mapKeys = (obj: any, fn: (key: string) => string) => {
 export function useSupabaseData<T extends { id?: string }>(tableName: string) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
+  const { session } = useAuth();
+  const userId = session?.user?.id;
 
   const fetchData = useCallback(async () => {
     try {
@@ -44,11 +47,10 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const addItem = async (item: any) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Vous devez être connecté.");
+      if (!userId) throw new Error("Vous devez être connecté.");
 
       const dbItem = mapKeys(item, toSnakeCase);
-      dbItem.user_id = user.id;
+      dbItem.user_id = userId;
 
       const { data: result, error } = await supabase
         .from(tableName)
