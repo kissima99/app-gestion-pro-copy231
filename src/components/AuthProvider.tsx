@@ -5,32 +5,50 @@ import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   session: Session | null;
+  profile: any | null;
   loading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>({ session: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ session: null, profile: null, loading: true });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (!error && data) {
+      setProfile(data);
+    }
+  };
 
   useEffect(() => {
     // Initial check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setSession(session);
+        fetchProfile(session.user.id).finally(() => setLoading(false));
       } else {
         setSession(null);
+        setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setSession(session);
+        fetchProfile(session.user.id);
       } else {
         setSession(null);
+        setProfile(null);
       }
       setLoading(false);
     });
@@ -47,7 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ session, loading }}>
+    <AuthContext.Provider value={{ session, profile, loading }}>
       {children}
     </AuthContext.Provider>
   );

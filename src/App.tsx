@@ -27,8 +27,30 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!session) {
-    // Redirect to login but save the current location they were trying to go to
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const RoleProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode, requiredRole: string }) => {
+  const { session, profile, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (profile?.role !== requiredRole) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -52,9 +74,9 @@ const AppRoutes = () => {
       } />
       
       <Route path="/super-admin" element={
-        <ProtectedRoute>
+        <RoleProtectedRoute requiredRole="admin">
           <SuperAdmin />
-        </ProtectedRoute>
+        </RoleProtectedRoute>
       } />
       
       <Route path="*" element={<NotFound />} />
