@@ -20,7 +20,6 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const { session } = useAuth();
-  const userId = session?.user?.id;
 
   const fetchData = useCallback(async () => {
     try {
@@ -45,12 +44,22 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
     fetchData();
   }, [fetchData]);
 
+  // Helper pour obtenir l'ID utilisateur de manière sûre et fraîche
+  const getFreshUserId = async () => {
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    return currentSession?.user?.id;
+  };
+
   const addItem = async (item: any) => {
     try {
-      if (!userId) throw new Error("Vous devez être connecté.");
+      const currentUserId = await getFreshUserId();
+      if (!currentUserId) {
+        toast.error("Session expirée. Veuillez rafraîchir la page ou vous reconnecter.");
+        return null;
+      }
 
       const dbItem = mapKeys(item, toSnakeCase);
-      dbItem.user_id = userId;
+      dbItem.user_id = currentUserId;
 
       const { data: result, error } = await supabase
         .from(tableName)
@@ -71,6 +80,12 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const updateItem = async (id: string, updates: Partial<T>) => {
     try {
+      const currentUserId = await getFreshUserId();
+      if (!currentUserId) {
+        toast.error("Session expirée. Action impossible.");
+        return null;
+      }
+
       const dbUpdates = mapKeys(updates, toSnakeCase);
       const { data: result, error } = await supabase
         .from(tableName)
@@ -91,6 +106,12 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const deleteItem = async (id: string) => {
     try {
+      const currentUserId = await getFreshUserId();
+      if (!currentUserId) {
+        toast.error("Session expirée. Action impossible.");
+        return;
+      }
+
       const { error } = await supabase
         .from(tableName)
         .delete()
