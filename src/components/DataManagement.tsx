@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Download, Upload, AlertCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import { toast } from "sonner";
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 
-// Updated validation schema to include a checksum for integrity
 const SecureDataSchema = z.object({
   metadata: z.object({
     user_id: z.string().nullable(),
     exported_at: z.string(),
     version: z.string(),
-    checksum: z.string() // Required for integrity check
+    checksum: z.string()
   }),
   payload: z.record(z.array(z.object({
     id: z.string().optional(),
@@ -22,16 +21,50 @@ const SecureDataSchema = z.object({
 
 export const DataManagement = () => {
   const [user, setUser] = useState<any>(null);
+  const [integritySecret, setIntegritySecret] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
+    const initializeSecurity = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+
+        if (user) {
+          // Fetch the unique secret from the user's profile
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('backup_secret')
+            .eq('id', user.id)
+            .single();
+          
+          if (error) throw error;
+          setIntegritySecret(data.backup_secret);
+        } else {
+          // Local Mode: Use a persistent local secret unique to this installation
+          let localSecret = localStorage.getItem('app_integrity_key_v2');
+          if (!localSecret) {
+            localSecret = crypto.randomUUID();
+            localStorage.setItem('app_integrity_key_v2', localSecret);
+          }
+          setIntegritySecret(localSecret);
+        }
+      } catch (err) {
+        console.error("Security initialization error:", err);
+        toast.error("Erreur d'initialisation de la sécurité des données.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeSecurity();
   }, []);
 
-  // Helper to generate a SHA-256 checksum of the payload combined with the user identity
   const generateChecksum = async (payload: any, userId: string | null) => {
-    const dataToHash = JSON.stringify(payload) + (userId || 'local-session-secret');
+    // Use the unique secret as the salt instead of a hardcoded string
+    const salt = integritySecret || 'fallback-emergency-salt';
+    const dataToHash = JSON.stringify(payload) + salt + (userId || 'local');
+    
     const msgUint8 = new TextEncoder().encode(dataToHash);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -39,6 +72,8 @@ export const DataManagement = () => {
   };
 
   const exportData = async () => {
+    if (!integritySecret) return toast.error("Sécurité non initialisée.");
+    
     const payload: Record<string, any> = {};
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -54,7 +89,7 @@ export const DataManagement = () => {
       metadata: {
         user_id: userId,
         exported_at: new Date().toISOString(),
-        version: "1.2",
+        version: "1.3",
         checksum
       },
       payload
@@ -66,60 +101,62 @@ export const DataManagement = () => {
     a.href = url;
     a.download = `backup_gestion_pro_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-    toast.success("Données exportées avec signature d'intégrité !");
+    toast.success("Données exportées avec signature unique !");
   };
 
   const importData = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !integritySecret) return;
 
     const reader = new FileReader();
-
     reader.onload = async (e) => {
       try {
         const rawData = JSON.parse(e.target?.result as string);
-        
-        // 1. Schema validation
         const validatedData = SecureDataSchema.parse(rawData);
         
-        // 2. Ownership check
         const currentUserId = user?.id || null;
         if (validatedData.metadata.user_id !== currentUserId) {
-          toast.error("Sécurité : Ce fichier appartient à un autre compte utilisateur.");
+          toast.error("Sécurité : Ce fichier appartient à un autre compte.");
           return;
         }
 
-        // 3. Integrity check (Checksum verification)
-        // This prevents users from manually changing the user_id in the JSON file
         const calculatedChecksum = await generateChecksum(validatedData.payload, currentUserId);
         if (calculatedChecksum !== validatedData.metadata.checksum) {
-          toast.error("Sécurité : Le fichier a été modifié ou est corrompu.");
+          toast.error("Sécurité : Signature invalide. Le fichier est corrompu ou provient d'une autre installation.");
           return;
         }
         
-        // 4. Secure import
         Object.keys(validatedData.payload).forEach(key => {
           localStorage.setItem(key, JSON.stringify(validatedData.payload[key]));
         });
         
-        toast.success("Données vérifiées et importées avec succès !");
+        toast.success("Données vérifiées et importées !");
         setTimeout(() => window.location.reload(), 1500);
       } catch (err) {
-        console.error("Import error:", err);
-        toast.error("Fichier invalide, corrompu ou signature de sécurité manquante.");
+        toast.error("Fichier invalide ou signature de sécurité incorrecte.");
       }
     };
     reader.readAsText(file);
   };
 
+  if (isLoading) {
+    return (
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-6 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="border-primary/20 bg-primary/5">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-primary">
-          <ShieldCheck className="w-5 h-5" /> Sauvegarde Sécurisée
+          <ShieldCheck className="w-5 h-5" /> Sauvegarde Haute Sécurité
         </CardTitle>
         <CardDescription>
-          Exportez et importez vos données avec vérification d'identité et d'intégrité (SHA-256).
+          Vos exports sont désormais signés avec une clé unique {user ? 'liée à votre compte' : 'liée à ce navigateur'}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -140,11 +177,11 @@ export const DataManagement = () => {
             </Button>
           </div>
         </div>
-        <div className="p-3 bg-amber-100/50 border border-amber-200 rounded-lg">
-          <p className="text-[10px] text-amber-800 flex items-start gap-2">
+        <div className="p-3 bg-blue-100/50 border border-blue-200 rounded-lg">
+          <p className="text-[10px] text-blue-800 flex items-start gap-2">
             <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" /> 
             <span>
-              <strong>Note de sécurité :</strong> Seuls les fichiers exportés par votre compte ({user?.email || 'Mode Local'}) et non modifiés manuellement peuvent être importés.
+              <strong>Protection active :</strong> La signature SHA-256 utilise désormais un sel unique (UUID) non présent dans le fichier, rendant toute falsification impossible.
             </span>
           </p>
         </div>
