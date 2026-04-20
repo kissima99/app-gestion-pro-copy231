@@ -19,7 +19,7 @@ const mapKeys = (obj: any, fn: (key: string) => string) => {
 export function useSupabaseData<T extends { id?: string }>(tableName: string) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
-  const { session } = useAuth();
+  const { session: authSession } = useAuth();
 
   const fetchData = useCallback(async () => {
     try {
@@ -44,35 +44,44 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
     fetchData();
   }, [fetchData]);
 
-  // Helper pour obtenir l'ID utilisateur de manière sûre et fraîche
-  const getFreshUserId = async () => {
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
-    return currentSession?.user?.id;
-  };
-
   const addItem = async (item: any) => {
     try {
-      const currentUserId = await getFreshUserId();
-      if (!currentUserId) {
-        toast.error("Session expirée. Veuillez rafraîchir la page ou vous reconnecter.");
+      // On récupère la session la plus récente directement depuis Supabase
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.user) {
+        console.error("[useSupabaseData] Session invalide au moment de l'ajout", sessionError);
+        toast.error("Votre session a expiré. Veuillez vous reconnecter.");
         return null;
       }
 
+      const currentUserId = session.user.id;
       const dbItem = mapKeys(item, toSnakeCase);
+      
+      // On s'assure que l'user_id est bien présent pour passer les politiques RLS
       dbItem.user_id = currentUserId;
+
+      console.log(`[useSupabaseData] Tentative d'ajout dans ${tableName} pour l'utilisateur ${currentUserId}`);
 
       const { data: result, error } = await supabase
         .from(tableName)
         .insert([dbItem])
         .select();
 
-      if (error) throw error;
+      if (error) {
+        // Traduction manuelle si l'erreur est liée à l'auth
+        if (error.code === '42501' || error.message.includes('row-level security')) {
+          throw new Error("Vous n'avez pas les permissions nécessaires ou votre session est invalide.");
+        }
+        throw error;
+      }
       
       const newItem = mapKeys(result[0], toCamelCase);
       setData(prev => [newItem, ...prev]);
       toast.success("Enregistré avec succès");
       return newItem;
     } catch (error: any) {
+      console.error(`[useSupabaseData] Erreur lors de l'ajout dans ${tableName}:`, error);
       toast.error(error.message || "Erreur lors de l'enregistrement");
       return null;
     }
@@ -80,8 +89,8 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const updateItem = async (id: string, updates: Partial<T>) => {
     try {
-      const currentUserId = await getFreshUserId();
-      if (!currentUserId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
         toast.error("Session expirée. Action impossible.");
         return null;
       }
@@ -106,8 +115,8 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const deleteItem = async (id: string) => {
     try {
-      const currentUserId = await getFreshUserId();
-      if (!currentUserId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
         toast.error("Session expirée. Action impossible.");
         return;
       }
