@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,41 +8,38 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Client } from '../types/automobile';
-import { UserPlus, Search, User, Building, Trash2 } from 'lucide-react';
+import { UserPlus, Search, User, Building, Trash2, Loader2 } from 'lucide-react';
+import { toast } from "sonner";
 
 interface Props {
   clients: Client[];
-  setClients: (clients: Client[]) => void;
+  onAdd: (client: any) => Promise<any>;
+  onDelete: (id: string) => Promise<void>;
 }
 
-export const ClientManager = ({ clients, setClients }: Props) => {
+export const ClientManager = ({ clients, onAdd, onDelete }: Props) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newClient, setNewClient] = useState<Partial<Client>>({
     clientType: 'individual',
     registrationDate: new Date().toISOString().split('T')[0]
   });
 
-  const addClient = () => {
+  const handleAdd = async () => {
     if (!newClient.firstName || !newClient.lastName || !newClient.phone || !newClient.idNumber) {
-      alert("Veuillez remplir les champs obligatoires : nom, prénom, téléphone et numéro d'identité");
+      toast.error("Veuillez remplir les champs obligatoires : nom, prénom, téléphone et numéro d'identité");
       return;
     }
 
-    const client: Client = {
-      ...newClient as Client,
-      id: Date.now().toString()
-    };
-
-    setClients([client, ...clients]);
-    setNewClient({
-      clientType: 'individual',
-      registrationDate: new Date().toISOString().split('T')[0]
-    });
-  };
-
-  const deleteClient = (id: string) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce client ?")) {
-      setClients(clients.filter(c => c.id !== id));
+    try {
+      setIsSubmitting(true);
+      await onAdd(newClient);
+      setNewClient({
+        clientType: 'individual',
+        registrationDate: new Date().toISOString().split('T')[0]
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -75,7 +74,7 @@ export const ClientManager = ({ clients, setClients }: Props) => {
             <div className="space-y-2">
               <Label>Nom de l'entreprise</Label>
               <Input 
-                value={newClient.companyName} 
+                value={newClient.companyName || ''} 
                 onChange={e => setNewClient({...newClient, companyName: e.target.value})}
               />
             </div>
@@ -83,21 +82,21 @@ export const ClientManager = ({ clients, setClients }: Props) => {
           <div className="space-y-2">
             <Label>Prénom</Label>
             <Input 
-              value={newClient.firstName} 
+              value={newClient.firstName || ''} 
               onChange={e => setNewClient({...newClient, firstName: e.target.value})}
             />
           </div>
           <div className="space-y-2">
             <Label>Nom</Label>
             <Input 
-              value={newClient.lastName} 
+              value={newClient.lastName || ''} 
               onChange={e => setNewClient({...newClient, lastName: e.target.value})}
             />
           </div>
           <div className="space-y-2">
             <Label>Téléphone</Label>
             <Input 
-              value={newClient.phone} 
+              value={newClient.phone || ''} 
               onChange={e => setNewClient({...newClient, phone: e.target.value})}
               placeholder="+221 ..."
             />
@@ -106,7 +105,7 @@ export const ClientManager = ({ clients, setClients }: Props) => {
             <Label>Email</Label>
             <Input 
               type="email"
-              value={newClient.email} 
+              value={newClient.email || ''} 
               onChange={e => setNewClient({...newClient, email: e.target.value})}
               placeholder="Optionnel"
             />
@@ -114,14 +113,14 @@ export const ClientManager = ({ clients, setClients }: Props) => {
           <div className="space-y-2">
             <Label>Numéro d'identité</Label>
             <Input 
-              value={newClient.idNumber} 
+              value={newClient.idNumber || ''} 
               onChange={e => setNewClient({...newClient, idNumber: e.target.value})}
             />
           </div>
           <div className="space-y-2">
             <Label>Permis de conduire</Label>
             <Input 
-              value={newClient.driverLicense} 
+              value={newClient.driverLicense || ''} 
               onChange={e => setNewClient({...newClient, driverLicense: e.target.value})}
               placeholder="Optionnel"
             />
@@ -129,12 +128,13 @@ export const ClientManager = ({ clients, setClients }: Props) => {
           <div className="space-y-2 md:col-span-2">
             <Label>Adresse</Label>
             <Input 
-              value={newClient.address} 
+              value={newClient.address || ''} 
               onChange={e => setNewClient({...newClient, address: e.target.value})}
             />
           </div>
-          <Button onClick={addClient} className="md:col-span-2 mt-2">
-            <UserPlus className="w-4 h-4 mr-2" /> Ajouter le client
+          <Button onClick={handleAdd} className="md:col-span-2 mt-2" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
+            Ajouter le client
           </Button>
         </CardContent>
       </Card>
@@ -181,7 +181,9 @@ export const ClientManager = ({ clients, setClients }: Props) => {
                 )}
               </div>
 
-              <Button size="sm" variant="ghost" className="text-red-500" onClick={() => deleteClient(client.id)}>
+              <Button size="sm" variant="ghost" className="text-red-500" onClick={() => {
+                if(confirm("Supprimer ce client ?")) onDelete(client.id);
+              }}>
                 <Trash2 className="w-4 h-4 mr-1" /> Supprimer
               </Button>
             </CardContent>

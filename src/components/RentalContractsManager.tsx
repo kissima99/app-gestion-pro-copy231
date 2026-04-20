@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,16 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { RentalContract, Vehicle, Client } from '../types/automobile';
 import { generateRentalContractPDF } from '../lib/automobile-pdf-service';
-import { FileText, Download, Plus, Calendar, DollarSign } from 'lucide-react';
+import { FileText, Download, Plus, Calendar, DollarSign, Loader2, Trash2 } from 'lucide-react';
+import { toast } from "sonner";
 
 interface Props {
   rentalContracts: RentalContract[];
-  setRentalContracts: (contracts: RentalContract[]) => void;
+  onAdd: (contract: any) => Promise<any>;
+  onDelete: (id: string) => Promise<void>;
   vehicles: Vehicle[];
   clients: Client[];
 }
 
-export const RentalContractsManager = ({ rentalContracts, setRentalContracts, vehicles, clients }: Props) => {
+export const RentalContractsManager = ({ rentalContracts, onAdd, onDelete, vehicles, clients }: Props) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newContract, setNewContract] = useState<Partial<RentalContract>>({
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
@@ -27,7 +32,6 @@ export const RentalContractsManager = ({ rentalContracts, setRentalContracts, ve
   });
 
   const availableVehicles = vehicles.filter(v => v.status === 'available');
-  const availableClients = clients;
 
   const calculateTotalDays = (start: string, end: string) => {
     if (!start || !end) return 0;
@@ -37,53 +41,46 @@ export const RentalContractsManager = ({ rentalContracts, setRentalContracts, ve
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const createContract = () => {
+  const handleCreate = async () => {
     const vehicle = vehicles.find(v => v.id === newContract.vehicleId);
     const client = clients.find(c => c.id === newContract.clientId);
 
     if (!vehicle || !client || !newContract.startDate || !newContract.endDate) {
-      alert("Veuillez sélectionner un véhicule, un client et définir les dates de location");
+      toast.error("Veuillez sélectionner un véhicule, un client et définir les dates de location");
       return;
     }
 
-    const totalDays = calculateTotalDays(newContract.startDate, newContract.endDate);
-    const totalAmount = totalDays * vehicle.dailyRate;
+    try {
+      setIsSubmitting(true);
+      const totalDays = calculateTotalDays(newContract.startDate, newContract.endDate);
+      const totalAmount = totalDays * vehicle.dailyRate;
 
-    const contract: RentalContract = {
-      ...newContract as RentalContract,
-      id: Date.now().toString(),
-      contractNumber: `LOC-${Date.now().toString().slice(-6)}`,
-      vehicleDetails: `${vehicle.brand} ${vehicle.model} (${vehicle.registration})`,
-      clientName: `${client.firstName} ${client.lastName}`,
-      totalDays,
-      dailyRate: vehicle.dailyRate,
-      totalAmount
-    };
+      const contractData = {
+        ...newContract,
+        contractNumber: `LOC-${Date.now().toString().slice(-6)}`,
+        vehicleDetails: `${vehicle.brand} ${vehicle.model} (${vehicle.registration})`,
+        clientName: `${client.firstName} ${client.lastName}`,
+        totalDays,
+        dailyRate: vehicle.dailyRate,
+        totalAmount
+      };
 
-    setRentalContracts([contract, ...rentalContracts]);
-    
-    // Mettre à jour le statut du véhicule
-    vehicles.forEach(v => {
-      if (v.id === vehicle.id) {
-        v.status = 'rented';
+      const result = await onAdd(contractData);
+      if (result) {
+        generateRentalContractPDF(result, vehicle, client);
       }
-    });
 
-    // Générer le PDF
-    generateRentalContractPDF(contract, vehicle, client);
-
-    setNewContract({
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: '',
-      insuranceIncluded: true,
-      status: 'active',
-      paymentStatus: 'pending',
-      createdDate: new Date().toISOString().split('T')[0]
-    });
-  };
-
-  const updateContractStatus = (id: string, status: RentalContract['status']) => {
-    setRentalContracts(rentalContracts.map(c => c.id === id ? { ...c, status } : c));
+      setNewContract({
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: '',
+        insuranceIncluded: true,
+        status: 'active',
+        paymentStatus: 'pending',
+        createdDate: new Date().toISOString().split('T')[0]
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -97,14 +94,14 @@ export const RentalContractsManager = ({ rentalContracts, setRentalContracts, ve
         <CardContent className="p-6 grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Véhicule</Label>
-            <Select onValueChange={(v) => setNewContract({...newContract, vehicleId: v})}>
+            <Select onValueChange={(v) => setNewContract({...newContract, vehicleId: v})} value={newContract.vehicleId}>
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner un véhicule" />
               </SelectTrigger>
               <SelectContent>
                 {availableVehicles.map(v => (
                   <SelectItem key={v.id} value={v.id}>
-                    {v.brand} {v.model} ({v.registration}) - {v.dailyRate.toLocaleString()} FCFA/jour
+                    {v.brand} {v.model} ({v.registration}) - {v.dailyRate?.toLocaleString()} FCFA/jour
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -112,12 +109,12 @@ export const RentalContractsManager = ({ rentalContracts, setRentalContracts, ve
           </div>
           <div className="space-y-2">
             <Label>Client</Label>
-            <Select onValueChange={(v) => setNewContract({...newContract, clientId: v})}>
+            <Select onValueChange={(v) => setNewContract({...newContract, clientId: v})} value={newContract.clientId}>
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner un client" />
               </SelectTrigger>
               <SelectContent>
-                {availableClients.map(c => (
+                {clients.map(c => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.firstName} {c.lastName} ({c.phone})
                   </SelectItem>
@@ -157,13 +154,14 @@ export const RentalContractsManager = ({ rentalContracts, setRentalContracts, ve
           <div className="space-y-2 md:col-span-2">
             <Label>Options supplémentaires</Label>
             <Input 
-              value={newContract.additionalOptions} 
+              value={newContract.additionalOptions || ''} 
               onChange={e => setNewContract({...newContract, additionalOptions: e.target.value})}
               placeholder="Ex: Siège bébé, GPS..."
             />
           </div>
-          <Button onClick={createContract} className="md:col-span-2">
-            <FileText className="w-4 h-4 mr-2" /> Générer le contrat
+          <Button onClick={handleCreate} className="md:col-span-2" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+            Générer le contrat
           </Button>
         </CardContent>
       </Card>
@@ -171,58 +169,65 @@ export const RentalContractsManager = ({ rentalContracts, setRentalContracts, ve
       <div className="space-y-4">
         <h3 className="font-bold text-lg">Contrats de Location</h3>
         <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted">
-              <tr>
-                <th className="p-3 text-left">N° Contrat</th>
-                <th className="p-3 text-left">Client</th>
-                <th className="p-3 text-left">Véhicule</th>
-                <th className="p-3 text-left">Période</th>
-                <th className="p-3 text-left">Montant</th>
-                <th className="p-3 text-left">Statut</th>
-                <th className="p-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rentalContracts.map(contract => {
-                const vehicle = vehicles.find(v => v.id === contract.vehicleId);
-                const client = clients.find(c => c.id === contract.clientId);
-                return (
-                  <tr key={contract.id} className="hover:bg-muted/50">
-                    <td className="p-3 font-medium">{contract.contractNumber}</td>
-                    <td className="p-3">{contract.clientName}</td>
-                    <td className="p-3">{contract.vehicleDetails}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {contract.totalDays} jours
-                      </div>
-                    </td>
-                    <td className="p-3 font-bold">
-                      <div className="flex items-center gap-1">
-                        <DollarSign className="w-3 h-3" />
-                        {contract.totalAmount.toLocaleString()} FCFA
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
-                        {contract.status === 'active' ? 'Actif' : 'Terminé'}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-right">
-                      <Button size="icon" variant="ghost" onClick={() => {
-                        if (vehicle && client) {
-                          generateRentalContractPDF(contract, vehicle, client);
-                        }
-                      }}>
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="p-3 text-left">N° Contrat</th>
+                  <th className="p-3 text-left">Client</th>
+                  <th className="p-3 text-left">Véhicule</th>
+                  <th className="p-3 text-left">Période</th>
+                  <th className="p-3 text-left">Montant</th>
+                  <th className="p-3 text-left">Statut</th>
+                  <th className="p-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rentalContracts.map(contract => {
+                  const vehicle = vehicles.find(v => v.id === contract.vehicleId);
+                  const client = clients.find(c => c.id === contract.clientId);
+                  return (
+                    <tr key={contract.id} className="hover:bg-muted/50">
+                      <td className="p-3 font-medium">{contract.contractNumber}</td>
+                      <td className="p-3">{contract.clientName}</td>
+                      <td className="p-3">{contract.vehicleDetails}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {contract.totalDays} jours
+                        </div>
+                      </td>
+                      <td className="p-3 font-bold">
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3" />
+                          {contract.totalAmount?.toLocaleString()} FCFA
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={contract.status === 'active' ? 'default' : 'secondary'}>
+                          {contract.status === 'active' ? 'Actif' : 'Terminé'}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right flex justify-end gap-2">
+                        <Button size="icon" variant="ghost" onClick={() => {
+                          if (vehicle && client) {
+                            generateRentalContractPDF(contract, vehicle, client);
+                          }
+                        }}>
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="text-red-500" onClick={() => {
+                          if(confirm("Supprimer ce contrat ?")) onDelete(contract.id);
+                        }}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

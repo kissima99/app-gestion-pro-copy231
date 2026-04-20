@@ -1,21 +1,27 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { SaleContract, Vehicle } from '../types/automobile';
 import { generateSaleContractPDF } from '../lib/automobile-pdf-service';
-import { FileText, Download, Plus, DollarSign, User } from 'lucide-react';
+import { FileText, Download, Plus, DollarSign, User, Loader2, Trash2 } from 'lucide-react';
+import { toast } from "sonner";
 
 interface Props {
   saleContracts: SaleContract[];
-  setSaleContracts: (contracts: SaleContract[]) => void;
+  onAdd: (contract: any) => Promise<any>;
+  onDelete: (id: string) => Promise<void>;
   vehicles: Vehicle[];
   sellers: any[];
 }
 
-export const SaleContractsManager = ({ saleContracts, setSaleContracts, vehicles, sellers }: Props) => {
+export const SaleContractsManager = ({ saleContracts, onAdd, onDelete, vehicles, sellers }: Props) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newContract, setNewContract] = useState<Partial<SaleContract>>({
     saleDate: new Date().toISOString().split('T')[0],
     paymentMethod: 'cash',
@@ -25,40 +31,39 @@ export const SaleContractsManager = ({ saleContracts, setSaleContracts, vehicles
 
   const vehiclesForSale = vehicles.filter(v => v.status === 'available' && v.salePrice);
 
-  const createContract = () => {
+  const handleCreate = async () => {
     const vehicle = vehicles.find(v => v.id === newContract.vehicleId);
     const seller = sellers[0];
 
     if (!vehicle || !newContract.buyerName || !newContract.buyerPhone || !newContract.salePrice) {
-      alert("Veuillez remplir tous les champs obligatoires");
+      toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
 
-    const contract: SaleContract = {
-      ...newContract as SaleContract,
-      id: Date.now().toString(),
-      contractNumber: `VENTE-${Date.now().toString().slice(-6)}`,
-      vehicleDetails: `${vehicle.brand} ${vehicle.model} (${vehicle.registration})`,
-      sellerName: seller?.name || 'Vendeur',
-      sellerId: seller?.id || '1'
-    };
+    try {
+      setIsSubmitting(true);
+      const contractData = {
+        ...newContract,
+        contractNumber: `VENTE-${Date.now().toString().slice(-6)}`,
+        vehicleDetails: `${vehicle.brand} ${vehicle.model} (${vehicle.registration})`,
+        sellerName: seller?.name || 'Vendeur',
+        sellerId: seller?.id || '1'
+      };
 
-    setSaleContracts([contract, ...saleContracts]);
-    
-    vehicles.forEach(v => {
-      if (v.id === vehicle.id) {
-        v.status = 'sold';
+      const result = await onAdd(contractData);
+      if (result) {
+        generateSaleContractPDF(result, vehicle, seller);
       }
-    });
 
-    generateSaleContractPDF(contract, vehicle, seller);
-
-    setNewContract({
-      saleDate: new Date().toISOString().split('T')[0],
-      paymentMethod: 'cash',
-      status: 'draft',
-      createdDate: new Date().toISOString().split('T')[0]
-    });
+      setNewContract({
+        saleDate: new Date().toISOString().split('T')[0],
+        paymentMethod: 'cash',
+        status: 'draft',
+        createdDate: new Date().toISOString().split('T')[0]
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -72,7 +77,7 @@ export const SaleContractsManager = ({ saleContracts, setSaleContracts, vehicles
         <CardContent className="p-6 grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Véhicule à vendre</Label>
-            <Select onValueChange={(v) => setNewContract({...newContract, vehicleId: v})}>
+            <Select onValueChange={(v) => setNewContract({...newContract, vehicleId: v})} value={newContract.vehicleId}>
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner un véhicule" />
               </SelectTrigger>
@@ -88,21 +93,21 @@ export const SaleContractsManager = ({ saleContracts, setSaleContracts, vehicles
           <div className="space-y-2">
             <Label>Nom de l'acheteur</Label>
             <Input 
-              value={newContract.buyerName} 
+              value={newContract.buyerName || ''} 
               onChange={e => setNewContract({...newContract, buyerName: e.target.value})}
             />
           </div>
           <div className="space-y-2">
             <Label>Téléphone acheteur</Label>
             <Input 
-              value={newContract.buyerPhone} 
+              value={newContract.buyerPhone || ''} 
               onChange={e => setNewContract({...newContract, buyerPhone: e.target.value})}
             />
           </div>
           <div className="space-y-2">
             <Label>Numéro d'identité acheteur</Label>
             <Input 
-              value={newContract.buyerIdNumber} 
+              value={newContract.buyerIdNumber || ''} 
               onChange={e => setNewContract({...newContract, buyerIdNumber: e.target.value})}
             />
           </div>
@@ -130,8 +135,9 @@ export const SaleContractsManager = ({ saleContracts, setSaleContracts, vehicles
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={createContract} className="md:col-span-2 h-12 font-bold">
-            <FileText className="w-4 h-4 mr-2" /> Générer le contrat
+          <Button onClick={handleCreate} className="md:col-span-2 h-12 font-bold" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+            Générer le contrat
           </Button>
         </CardContent>
       </Card>
@@ -139,64 +145,62 @@ export const SaleContractsManager = ({ saleContracts, setSaleContracts, vehicles
       <div className="space-y-4">
         <h3 className="font-bold text-lg">Contrats de Vente</h3>
         <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted">
-              <tr>
-                <th className="p-3 text-left">N° Contrat</th>
-                <th className="p-3 text-left">Acheteur</th>
-                <th className="p-3 text-left">Véhicule</th>
-                <th className="p-3 text-left">Prix</th>
-                <th className="p-3 text-left">Statut</th>
-                <th className="p-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {saleContracts.map(contract => {
-                const vehicle = vehicles.find(v => v.id === contract.vehicleId);
-                return (
-                  <tr key={contract.id} className="hover:bg-muted/50">
-                    <td className="p-3 font-medium">{contract.contractNumber}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-1">
-                        <User className="w-3 h-3" />
-                        {contract.buyerName}
-                      </div>
-                    </td>
-                    <td className="p-3">{contract.vehicleDetails}</td>
-                    <td className="p-3 font-bold">
-                      <div className="flex items-center gap-1">
-                        <DollarSign className="w-3 h-3" />
-                        {contract.salePrice.toLocaleString()} FCFA
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <Select value={contract.status} onValueChange={(v: SaleContract['status']) => {
-                        setSaleContracts(saleContracts.map(c => c.id === contract.id ? { ...c, status: v } : c));
-                      }}>
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="draft">Brouillon</SelectItem>
-                          <SelectItem value="completed">Finalisé</SelectItem>
-                          <SelectItem value="cancelled">Annulé</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="p-3 text-right">
-                      <Button size="icon" variant="ghost" onClick={() => {
-                        if (vehicle) {
-                          generateSaleContractPDF(contract, vehicle, sellers[0]);
-                        }
-                      }}>
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="p-3 text-left">N° Contrat</th>
+                  <th className="p-3 text-left">Acheteur</th>
+                  <th className="p-3 text-left">Véhicule</th>
+                  <th className="p-3 text-left">Prix</th>
+                  <th className="p-3 text-left">Statut</th>
+                  <th className="p-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {saleContracts.map(contract => {
+                  const vehicle = vehicles.find(v => v.id === contract.vehicleId);
+                  return (
+                    <tr key={contract.id} className="hover:bg-muted/50">
+                      <td className="p-3 font-medium">{contract.contractNumber}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <User className="w-3 h-3" />
+                          {contract.buyerName}
+                        </div>
+                      </td>
+                      <td className="p-3">{contract.vehicleDetails}</td>
+                      <td className="p-3 font-bold">
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3" />
+                          {contract.salePrice?.toLocaleString()} FCFA
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={contract.status === 'completed' ? 'default' : 'secondary'}>
+                          {contract.status === 'completed' ? 'Finalisé' : 'Brouillon'}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right flex justify-end gap-2">
+                        <Button size="icon" variant="ghost" onClick={() => {
+                          if (vehicle) {
+                            generateSaleContractPDF(contract, vehicle, sellers[0]);
+                          }
+                        }}>
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="text-red-500" onClick={() => {
+                          if(confirm("Supprimer ce contrat ?")) onDelete(contract.id);
+                        }}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

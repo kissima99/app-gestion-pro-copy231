@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,11 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Vehicle } from '../types/automobile';
-import { Car, Plus, Search, Edit, Trash2, CarFront } from 'lucide-react';
+import { Plus, Search, Trash2, CarFront, Loader2 } from 'lucide-react';
+import { toast } from "sonner";
 
 interface Props {
   vehicles: Vehicle[];
-  setVehicles: (vehicles: Vehicle[]) => void;
+  onAdd: (vehicle: any) => Promise<any>;
+  onDelete: (id: string) => Promise<void>;
+  onUpdate: (id: string, updates: any) => Promise<any>;
 }
 
 const VEHICLE_TYPES = [
@@ -27,8 +32,9 @@ const VEHICLE_STATUS = {
   maintenance: { label: 'Maintenance', variant: 'outline' as const }
 };
 
-export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
+export const VehicleManager = ({ vehicles, onAdd, onDelete, onUpdate }: Props) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newVehicle, setNewVehicle] = useState<Partial<Vehicle>>({
     type: 'voiture',
     status: 'available',
@@ -37,39 +43,33 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
     dailyRate: 0
   });
 
-  const addVehicle = () => {
+  const handleAdd = async () => {
     if (!newVehicle.brand || !newVehicle.model || !newVehicle.registration) {
-      alert("Veuillez remplir les champs obligatoires : marque, modèle et immatriculation");
+      toast.error("Veuillez remplir les champs obligatoires : marque, modèle et immatriculation");
       return;
     }
 
-    const vehicle: Vehicle = {
-      ...newVehicle as Vehicle,
-      id: Date.now().toString(),
-      mileage: Number(newVehicle.mileage) || 0,
-      dailyRate: Number(newVehicle.dailyRate) || 0,
-      salePrice: Number(newVehicle.salePrice) || undefined,
-      year: Number(newVehicle.year) || new Date().getFullYear()
-    };
+    try {
+      setIsSubmitting(true);
+      const vehicleData = {
+        ...newVehicle,
+        mileage: Number(newVehicle.mileage) || 0,
+        dailyRate: Number(newVehicle.dailyRate) || 0,
+        salePrice: newVehicle.salePrice ? Number(newVehicle.salePrice) : null,
+        year: Number(newVehicle.year) || new Date().getFullYear()
+      };
 
-    setVehicles([vehicle, ...vehicles]);
-    setNewVehicle({
-      type: 'voiture',
-      status: 'available',
-      purchaseDate: new Date().toISOString().split('T')[0],
-      mileage: 0,
-      dailyRate: 0
-    });
-  };
-
-  const deleteVehicle = (id: string) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce véhicule ?")) {
-      setVehicles(vehicles.filter(v => v.id !== id));
+      await onAdd(vehicleData);
+      setNewVehicle({
+        type: 'voiture',
+        status: 'available',
+        purchaseDate: new Date().toISOString().split('T')[0],
+        mileage: 0,
+        dailyRate: 0
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-  };
-
-  const updateVehicleStatus = (id: string, status: Vehicle['status']) => {
-    setVehicles(vehicles.map(v => v.id === id ? { ...v, status } : v));
   };
 
   const filteredVehicles = vehicles.filter(vehicle =>
@@ -103,7 +103,7 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
           <div className="space-y-2">
             <Label>Marque</Label>
             <Input 
-              value={newVehicle.brand} 
+              value={newVehicle.brand || ''} 
               onChange={e => setNewVehicle({...newVehicle, brand: e.target.value})}
               placeholder="Ex: Toyota"
             />
@@ -111,7 +111,7 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
           <div className="space-y-2">
             <Label>Modèle</Label>
             <Input 
-              value={newVehicle.model} 
+              value={newVehicle.model || ''} 
               onChange={e => setNewVehicle({...newVehicle, model: e.target.value})}
               placeholder="Ex: Corolla"
             />
@@ -119,7 +119,7 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
           <div className="space-y-2">
             <Label>Immatriculation</Label>
             <Input 
-              value={newVehicle.registration} 
+              value={newVehicle.registration || ''} 
               onChange={e => setNewVehicle({...newVehicle, registration: e.target.value})}
               placeholder="Ex: DK-1234-AB"
             />
@@ -137,7 +137,7 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
           <div className="space-y-2">
             <Label>Couleur</Label>
             <Input 
-              value={newVehicle.color} 
+              value={newVehicle.color || ''} 
               onChange={e => setNewVehicle({...newVehicle, color: e.target.value})}
               placeholder="Ex: Rouge"
             />
@@ -172,8 +172,9 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
               placeholder="Optionnel"
             />
           </div>
-          <Button onClick={addVehicle} className="md:col-span-2 lg:col-span-3 mt-2">
-            <Plus className="w-4 h-4 mr-2" /> Ajouter le véhicule
+          <Button onClick={handleAdd} className="md:col-span-2 lg:col-span-3 mt-2" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+            Ajouter le véhicule
           </Button>
         </CardContent>
       </Card>
@@ -190,7 +191,7 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredVehicles.map(vehicle => {
-          const statusInfo = VEHICLE_STATUS[vehicle.status];
+          const statusInfo = VEHICLE_STATUS[vehicle.status] || VEHICLE_STATUS.available;
           return (
             <Card key={vehicle.id} className="overflow-hidden">
               <CardContent className="p-4">
@@ -207,15 +208,15 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
                 
                 <div className="space-y-2 text-sm mb-4">
                   <p><span className="font-medium">Année:</span> {vehicle.year}</p>
-                  <p><span className="font-medium">Kilométrage:</span> {vehicle.mileage.toLocaleString()} km</p>
-                  <p><span className="font-medium">Tarif:</span> {vehicle.dailyRate.toLocaleString()} FCFA/jour</p>
+                  <p><span className="font-medium">Kilométrage:</span> {vehicle.mileage?.toLocaleString()} km</p>
+                  <p><span className="font-medium">Tarif:</span> {vehicle.dailyRate?.toLocaleString()} FCFA/jour</p>
                   {vehicle.salePrice && (
                     <p><span className="font-medium">Prix vente:</span> {vehicle.salePrice.toLocaleString()} FCFA</p>
                   )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Select value={vehicle.status} onValueChange={(v: Vehicle['status']) => updateVehicleStatus(vehicle.id, v)}>
+                  <Select value={vehicle.status} onValueChange={(v: Vehicle['status']) => onUpdate(vehicle.id, { status: v })}>
                     <SelectTrigger className="text-xs h-8">
                       <SelectValue />
                     </SelectTrigger>
@@ -225,7 +226,9 @@ export const VehicleManager = ({ vehicles, setVehicles }: Props) => {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button size="sm" variant="ghost" className="text-red-500" onClick={() => deleteVehicle(vehicle.id)}>
+                  <Button size="sm" variant="ghost" className="text-red-500" onClick={() => {
+                    if(confirm("Supprimer ce véhicule ?")) onDelete(vehicle.id);
+                  }}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
