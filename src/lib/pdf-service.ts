@@ -3,7 +3,6 @@ import 'jspdf-autotable';
 import { Owner, Tenant, Receipt, Agency } from '../types/rental';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 const formatNumber = (num: any) => {
   const n = typeof num === 'number' ? num : parseFloat(num);
@@ -154,92 +153,76 @@ export const generateCautionPDF = (owner: Owner, tenant: Tenant, agency: Agency)
   doc.save(`Recu_Caution_${tenant.lastName}.pdf`);
 };
 
-const downloadPdfBytes = (bytes: Uint8Array, filename: string) => {
-  const blob = new Blob([bytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-};
-
-const drawCenteredText = (args: {
-  page: any;
-  font: any;
-  text: string;
-  size: number;
-  y: number;
-  color?: ReturnType<typeof rgb>;
-}) => {
-  const { page, font, text, size, y, color = rgb(0, 0, 0) } = args;
-  const { width } = page.getSize();
-  const textWidth = font.widthOfTextAtSize(text, size);
-  const x = Math.max(20, (width - textWidth) / 2);
-  page.drawText(text, { x, y, size, font, color });
-};
-
 export const generateReceiptPDF = async (receipt: Receipt, agency: Agency) => {
-  const templateUrl = '/templates/quittance-modele.pdf';
-  const res = await fetch(templateUrl);
-  if (!res.ok) throw new Error('Impossible de charger le modèle de quittance.');
+  const doc = new jsPDF();
+  const primaryColor = [30, 58, 138];
+  
+  // --- EN-TÊTE ---
+  doc.setFontSize(20);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont(undefined, 'bold');
+  doc.text(agency.name?.toUpperCase() || 'AGENCE IMMOBILIÈRE', 105, 25, { align: 'center' });
+  
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.setFont(undefined, 'normal');
+  const agencyInfo = `${agency.address || ''} | Tél: ${agency.phone || ''} | Email: ${agency.email || ''}`;
+  doc.text(agencyInfo, 105, 32, { align: 'center' });
+  
+  doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setLineWidth(0.5);
+  doc.line(20, 38, 190, 38);
 
-  const bytes = await res.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(bytes);
-  const page = pdfDoc.getPages()[0];
-  const { height } = page.getSize();
+  // --- TITRE ---
+  doc.setFontSize(22);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont(undefined, 'bold');
+  doc.text("QUITTANCE DE LOYER", 105, 55, { align: 'center' });
+  
+  doc.setFontSize(11);
+  doc.text(`N° ${receipt.receiptNumber}`, 105, 62, { align: 'center' });
 
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  // --- CADRE RÉCAPITULATIF ---
+  let y = 80;
+  doc.setDrawColor(230, 230, 230);
+  doc.setFillColor(250, 250, 250);
+  doc.roundedRect(20, y, 170, 80, 3, 3, 'FD');
 
-  const agencyTitle = agency.name || 'AGENCE IMMOBILIÈRE';
-  drawCenteredText({ page, font: fontBold, text: agencyTitle, size: 14, y: height - 70, color: rgb(0.15, 0.2, 0.55) });
-
-  const headerLine = [
-    agency.address?.trim() ? agency.address.trim() : null,
-    agency.phone?.trim() ? `Tél: ${agency.phone.trim()}` : null,
-    agency.email?.trim() ? `Mail: ${agency.email.trim()}` : null,
-    agency.rccm?.trim() ? `RC: ${agency.rccm.trim()}` : null,
-  ]
-    .filter(Boolean)
-    .join(' | ');
-
-  if (headerLine) {
-    drawCenteredText({ page, font, text: headerLine, size: 9, y: height - 85, color: rgb(0.35, 0.35, 0.35) });
-  }
-
-  drawCenteredText({ page, font: fontBold, text: 'QUITTANCE DE LOYER', size: 18, y: height - 140, color: rgb(0, 0, 0) });
-
-  const leftX = 60;
-  const valueX = 185;
-  const startY = height - 200;
-  const lineGap = 22;
-
-  const labelColor = rgb(0.25, 0.25, 0.25);
-  const valueColor = rgb(0, 0, 0);
-
-  const drawRow = (i: number, label: string, value: string) => {
-    const y = startY - i * lineGap;
-    page.drawText(label, { x: leftX, y, size: 11, font: fontBold, color: labelColor });
-    page.drawText(value, { x: valueX, y, size: 11, font, color: valueColor });
+  y += 12;
+  const drawRow = (label: string, value: string) => {
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(80, 80, 80);
+    doc.text(label, 30, y);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(value, 80, y);
+    y += 12;
   };
 
-  drawRow(0, 'Quittance N° :', receipt.receiptNumber);
-  drawRow(1, 'Locataire :', receipt.tenantName);
-  drawRow(2, 'Montant :', `${formatNumber(receipt.amount)} FCFA`);
+  drawRow("Locataire :", receipt.tenantName);
+  drawRow("Local :", receipt.unitName || "Non spécifié");
+  drawRow("Adresse :", receipt.propertyAddress || "Non spécifiée");
+  drawRow("Période :", `Du ${receipt.periodStart} au ${receipt.periodEnd}`);
+  drawRow("Montant :", `${formatNumber(receipt.amount)} FCFA`);
 
-  const period = `${receipt.periodStart || 'N/A'} au ${receipt.periodEnd || 'N/A'}`;
-  drawRow(3, 'Période :', period);
+  // --- TEXTE LÉGAL ---
+  y += 15;
+  doc.setFontSize(10);
+  const legalText = `Je soussigné, ${agency.ownerName || 'le gérant'}, représentant l'agence ${agency.name || 'Gestion Pro'}, donne quittance à M/Mme ${receipt.tenantName} pour le paiement de la somme de ${formatNumber(receipt.amount)} FCFA au titre du loyer et des charges pour la période mentionnée ci-dessus.`;
+  const splitLegal = doc.splitTextToSize(legalText, 170);
+  doc.text(splitLegal, 20, y);
 
-  if (receipt.paymentDate) {
-    drawRow(4, 'Date paiement :', receipt.paymentDate);
-  }
+  // --- SIGNATURE ---
+  y = 220;
+  const dateFait = format(new Date(), 'dd MMMM yyyy', { locale: fr });
+  doc.setFont(undefined, 'bold');
+  doc.text(`Fait à Dakar, le ${dateFait}`, 105, y, { align: 'center' });
 
-  const footerY = 70;
-  const generatedAt = format(new Date(), 'dd/MM/yyyy', { locale: fr });
-  const footer = `Document généré le ${generatedAt}`;
-  drawCenteredText({ page, font, text: footer, size: 9, y: footerY, color: rgb(0.4, 0.4, 0.4) });
+  y += 20;
+  doc.text("Cachet et Signature de l'Agence", 145, y, { align: 'center' });
+  
+  doc.setDrawColor(200, 200, 200);
+  doc.line(120, y + 5, 180, y + 5);
 
-  const out = await pdfDoc.save();
-  downloadPdfBytes(out, `Quittance_${receipt.receiptNumber}.pdf`);
+  doc.save(`Quittance_${receipt.receiptNumber}.pdf`);
 };
