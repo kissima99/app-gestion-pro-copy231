@@ -46,22 +46,20 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const addItem = async (item: any) => {
     try {
-      // On récupère la session la plus récente directement depuis Supabase
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Utilisation de getUser() pour une vérification réelle côté serveur
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      if (sessionError || !session?.user) {
-        console.error("[useSupabaseData] Session invalide au moment de l'ajout", sessionError);
-        toast.error("Votre session a expiré. Veuillez vous reconnecter.");
+      if (userError || !user) {
+        console.error("[useSupabaseData] Utilisateur non authentifié", userError);
+        toast.error("Vous devez être connecté pour effectuer cette action.");
         return null;
       }
 
-      const currentUserId = session.user.id;
+      const currentUserId = user.id;
       const dbItem = mapKeys(item, toSnakeCase);
       
       // On s'assure que l'user_id est bien présent pour passer les politiques RLS
       dbItem.user_id = currentUserId;
-
-      console.log(`[useSupabaseData] Tentative d'ajout dans ${tableName} pour l'utilisateur ${currentUserId}`);
 
       const { data: result, error } = await supabase
         .from(tableName)
@@ -69,9 +67,8 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
         .select();
 
       if (error) {
-        // Traduction manuelle si l'erreur est liée à l'auth
         if (error.code === '42501' || error.message.includes('row-level security')) {
-          throw new Error("Vous n'avez pas les permissions nécessaires ou votre session est invalide.");
+          throw new Error("Erreur de permission : vérifiez que vous êtes bien connecté.");
         }
         throw error;
       }
@@ -89,8 +86,8 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const updateItem = async (id: string, updates: Partial<T>) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         toast.error("Session expirée. Action impossible.");
         return null;
       }
@@ -115,8 +112,8 @@ export function useSupabaseData<T extends { id?: string }>(tableName: string) {
 
   const deleteItem = async (id: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         toast.error("Session expirée. Action impossible.");
         return;
       }
