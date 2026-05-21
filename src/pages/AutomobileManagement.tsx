@@ -6,9 +6,10 @@ import { VehicleManager } from '../components/VehicleManager';
 import { ClientManager } from '../components/ClientManager';
 import { RentalContractsManager } from '../components/RentalContractsManager';
 import { SaleContractsManager } from '../components/SaleContractsManager';
+import { AutomobileSummary } from '../components/AutomobileSummary';
 import { useSupabaseData } from '../hooks/use-supabase-data';
 import { Vehicle, Client, RentalContract, SaleContract } from '../types/automobile';
-import { Car, Users, FileText, DollarSign, Building2 } from 'lucide-react';
+import { Car, Users, FileText, DollarSign, Building2, LayoutDashboard } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
@@ -21,44 +22,54 @@ const AutomobileManagement = () => {
   const sellers = [{ id: '1', name: 'Agence Automobile' }];
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary p-3 rounded-xl">
-              <Car className="text-white w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-black tracking-tight">GESTION AUTOMOBILE</h1>
-              <p className="text-muted-foreground">Gestion sécurisée de votre flotte de véhicules</p>
-            </div>
+    <div className="min-h-screen bg-background pb-24 md:pb-8">
+      {/* En-tête principal */}
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-lg p-4 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div className="bg-white p-2 rounded-xl shadow-inner">
+            <Car className="text-primary w-6 h-6" />
           </div>
-          
-          <Button variant="outline" asChild className="w-fit">
+          <div>
+            <h1 className="font-bold text-xl tracking-tight leading-none uppercase">GESTION AUTOMOBILE PRO</h1>
+            <p className="text-[10px] opacity-80 uppercase tracking-widest mt-1">Flotte & Contrats</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" asChild className="bg-white/10 hover:bg-white/20 text-white border-none shadow-md">
             <Link to="/">
               <Building2 className="w-4 h-4 mr-2" />
-              Gestion Locative
+              GESTION LOCATIVE
             </Link>
           </Button>
-        </header>
+        </div>
+      </header>
 
+      <main className="container max-w-6xl mx-auto p-4 md:p-8 space-y-8">
+        {/* Tableau de bord de synthèse */}
+        <AutomobileSummary 
+          vehicles={vehiclesData.data}
+          rentalContracts={rentalContractsData.data}
+          saleContracts={saleContractsData.data}
+        />
+
+        {/* Onglets de navigation */}
         <Tabs defaultValue="vehicles" className="w-full">
-          <TabsList className="grid grid-cols-4 bg-muted p-1 rounded-xl mb-6">
-            <TabsTrigger value="vehicles" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Car className="w-4 h-4 mr-2" /> Véhicules
+          <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full bg-muted p-1.5 rounded-2xl mb-8 shadow-inner gap-1">
+            <TabsTrigger value="vehicles" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">
+              <Car className="w-4 h-4 mr-2" /> VÉHICULES
             </TabsTrigger>
-            <TabsTrigger value="clients" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
-              <Users className="w-4 h-4 mr-2" /> Clients
+            <TabsTrigger value="clients" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">
+              <Users className="w-4 h-4 mr-2" /> CLIENTS
             </TabsTrigger>
-            <TabsTrigger value="rental" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
-              <FileText className="w-4 h-4 mr-2" /> Location
+            <TabsTrigger value="rental" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">
+              <FileText className="w-4 h-4 mr-2" /> LOCATIONS
             </TabsTrigger>
-            <TabsTrigger value="sales" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
-              <DollarSign className="w-4 h-4 mr-2" /> Vente
+            <TabsTrigger value="sales" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">
+              <DollarSign className="w-4 h-4 mr-2" /> VENTES
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="vehicles">
+          <TabsContent value="vehicles" className="space-y-6">
             <VehicleManager 
               vehicles={vehiclesData.data} 
               onAdd={vehiclesData.addItem}
@@ -67,7 +78,7 @@ const AutomobileManagement = () => {
             />
           </TabsContent>
 
-          <TabsContent value="clients">
+          <TabsContent value="clients" className="space-y-6">
             <ClientManager 
               clients={clientsData.data} 
               onAdd={clientsData.addItem}
@@ -75,7 +86,7 @@ const AutomobileManagement = () => {
             />
           </TabsContent>
 
-          <TabsContent value="rental">
+          <TabsContent value="rental" className="space-y-6">
             <RentalContractsManager 
               rentalContracts={rentalContractsData.data} 
               onAdd={rentalContractsData.addItem}
@@ -85,7 +96,7 @@ const AutomobileManagement = () => {
             />
           </TabsContent>
 
-          <TabsContent value="sales">
+          <TabsContent value="sales" className="space-y-6">
             <SaleContractsManager 
               saleContracts={saleContractsData.data} 
               onAdd={saleContractsData.addItem}
@@ -95,7 +106,7 @@ const AutomobileManagement = () => {
             />
           </TabsContent>
         </Tabs>
-      </div>
+      </main>
     </div>
   );
 };
