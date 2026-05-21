@@ -21,13 +21,24 @@ const SuperAdmin = () => {
   const fetchUsers = async () => {
     try {
       setRefreshing(true);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('updated_at', { ascending: false });
-      
-      if (error) throw error;
-      setUsers(data || []);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Non authentifié");
+
+      const response = await fetch('https://izwbhtubezebdgqtuuwb.supabase.co/functions/v1/manage-users?action=list', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Erreur serveur");
+      }
+
+      const result = await response.json();
+      setUsers(result.profiles || []);
     } catch (error: any) {
       toast.error("Erreur lors du chargement des utilisateurs : " + error.message);
     } finally {
@@ -42,12 +53,25 @@ const SuperAdmin = () => {
 
   const handleToggleAccess = async (userId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ has_paid: !currentStatus })
-        .eq('id', userId);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Non authentifié");
 
-      if (error) throw error;
+      const response = await fetch('https://izwbhtubezebdgqtuuwb.supabase.co/functions/v1/manage-users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId,
+          updates: { has_paid: !currentStatus }
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Erreur serveur");
+      }
       
       toast.success(currentStatus ? "Accès suspendu avec succès" : "Accès activé avec succès");
       fetchUsers();
@@ -59,12 +83,25 @@ const SuperAdmin = () => {
   const handleToggleRole = async (userId: string, currentRole: string) => {
     const newRole = currentRole === 'admin' ? 'client' : 'admin';
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', userId);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Non authentifié");
 
-      if (error) throw error;
+      const response = await fetch('https://izwbhtubezebdgqtuuwb.supabase.co/functions/v1/manage-users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId,
+          updates: { role: newRole }
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Erreur serveur");
+      }
       
       toast.success(`Rôle modifié en ${newRole}`);
       fetchUsers();
