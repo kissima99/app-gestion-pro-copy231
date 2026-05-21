@@ -12,7 +12,7 @@ import { DataManagement } from '../components/DataManagement';
 import { useSupabaseData } from '../hooks/use-supabase-data';
 import { useLocalStorage } from '../hooks/use-local-storage';
 import { Owner, Tenant, Receipt, Expense, Agency, Arrear } from '../types/rental';
-import { Building2, Moon, Sun, Car, Wrench, LogOut, ShieldCheck } from 'lucide-react';
+import { Building2, Moon, Sun, Car, Wrench, LogOut, ShieldCheck, Users, Receipt as ReceiptIcon, Wallet } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
@@ -110,21 +110,45 @@ const Index = () => {
           </Button>
         </div>
 
-        <Tabs defaultValue="locative" className="w-full">
-          <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full bg-muted p-1.5 rounded-2xl mb-8 shadow-inner">
-            <TabsTrigger value="locative" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">LOCATIF</TabsTrigger>
-            <TabsTrigger value="expenses_tab" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">DÉPENSES</TabsTrigger>
-            <TabsTrigger value="finances" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">QUITTANCES</TabsTrigger>
-            <TabsTrigger value="bilan_proprios" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">BILANS</TabsTrigger>
+        <Tabs defaultValue="admin" className="w-full">
+          <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full bg-muted p-1.5 rounded-2xl mb-8 shadow-inner gap-1">
             <TabsTrigger value="admin" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">ADMIN</TabsTrigger>
+            <TabsTrigger value="owners" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">PROPRIÉTAIRE</TabsTrigger>
+            <TabsTrigger value="tenants" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">LOCATAIRE</TabsTrigger>
+            <TabsTrigger value="expenses" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">DÉPENSE</TabsTrigger>
+            <TabsTrigger value="receipts" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">QUITTANCES</TabsTrigger>
+            <TabsTrigger value="bilans" className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-bold">BILAN</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="locative" className="space-y-6">
+          {/* 1. ADMIN */}
+          <TabsContent value="admin" className="space-y-6">
+            <div className="max-w-2xl mx-auto space-y-8">
+              <AgencyForm agency={agency} setAgency={setAgency} />
+              <DataManagement />
+            </div>
+          </TabsContent>
+
+          {/* 2. PROPRIETAIRE */}
+          <TabsContent value="owners" className="space-y-6">
+            <div className="flex items-center gap-3 mb-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+              <div className="bg-primary p-2 rounded-lg">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-2xl font-black text-primary">Gestion des Propriétaires</h2>
+            </div>
+            <OwnerManager 
+              owners={ownersData.data} 
+              onAdd={ownersData.addItem} 
+              onDelete={ownersData.deleteItem} 
+            />
+          </TabsContent>
+
+          {/* 3. LOCATAIRE */}
+          <TabsContent value="tenants" className="space-y-6">
             <Tabs defaultValue="tenants_list">
               <TabsList className="bg-transparent border-b w-full justify-start gap-8 mb-6">
-                <TabsTrigger value="tenants_list" className="font-black text-lg data-[state=active]:text-primary data-[state=active]:border-b-4 data-[state=active]:border-primary rounded-none pb-2">Locataires</TabsTrigger>
-                <TabsTrigger value="owners_list" className="font-black text-lg data-[state=active]:text-primary data-[state=active]:border-b-4 data-[state=active]:border-primary rounded-none pb-2">Propriétaires</TabsTrigger>
-                <TabsTrigger value="arrears" className="font-black text-lg data-[state=active]:text-primary data-[state=active]:border-b-4 data-[state=active]:border-primary rounded-none pb-2">Impayés</TabsTrigger>
+                <TabsTrigger value="tenants_list" className="font-black text-lg data-[state=active]:text-primary data-[state=active]:border-b-4 data-[state=active]:border-primary rounded-none pb-2">Liste des Locataires</TabsTrigger>
+                <TabsTrigger value="arrears" className="font-black text-lg data-[state=active]:text-primary data-[state=active]:border-b-4 data-[state=active]:border-primary rounded-none pb-2">Suivi des Impayés</TabsTrigger>
               </TabsList>
               <TabsContent value="tenants_list">
                 <TenantManager 
@@ -132,13 +156,6 @@ const Index = () => {
                   onAdd={tenantsData.addItem} 
                   onDelete={tenantsData.deleteItem} 
                   owners={ownersData.data} 
-                />
-              </TabsContent>
-              <TabsContent value="owners_list">
-                <OwnerManager 
-                  owners={ownersData.data} 
-                  onAdd={ownersData.addItem} 
-                  onDelete={ownersData.deleteItem} 
                 />
               </TabsContent>
               <TabsContent value="arrears">
@@ -153,24 +170,24 @@ const Index = () => {
             </Tabs>
           </TabsContent>
 
-          <TabsContent value="expenses_tab">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                <div className="bg-primary p-2 rounded-lg">
-                  <Wrench className="w-6 h-6 text-white" />
-                </div>
-                <h2 className="text-2xl font-black text-primary">Gestion des Dépenses & Travaux</h2>
+          {/* 4. DEPENSE */}
+          <TabsContent value="expenses" className="space-y-6">
+            <div className="flex items-center gap-3 mb-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+              <div className="bg-primary p-2 rounded-lg">
+                <Wrench className="w-6 h-6 text-white" />
               </div>
-              <ExpenseManager 
-                expenses={expensesData.data} 
-                onAdd={expensesData.addItem} 
-                onDelete={expensesData.deleteItem} 
-                owners={ownersData.data} 
-              />
+              <h2 className="text-2xl font-black text-primary">Gestion des Dépenses & Travaux</h2>
             </div>
+            <ExpenseManager 
+              expenses={expensesData.data} 
+              onAdd={expensesData.addItem} 
+              onDelete={expensesData.deleteItem} 
+              owners={ownersData.data} 
+            />
           </TabsContent>
 
-          <TabsContent value="finances" className="space-y-8">
+          {/* 5. QUITTANCES */}
+          <TabsContent value="receipts" className="space-y-8">
             <MonthlySummary receipts={receiptsData.data} expenses={expensesData.data} agency={agency} />
             <ReceiptManager 
               receipts={receiptsData.data} 
@@ -183,7 +200,14 @@ const Index = () => {
             />
           </TabsContent>
 
-          <TabsContent value="bilan_proprios">
+          {/* 6. BILAN */}
+          <TabsContent value="bilans" className="space-y-6">
+            <div className="flex items-center gap-3 mb-4 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+              <div className="bg-primary p-2 rounded-lg">
+                <Wallet className="w-6 h-6 text-white" />
+              </div>
+              <h2 className="text-2xl font-black text-primary">Bilans Financiers des Propriétaires</h2>
+            </div>
             <OwnerFinanceSummary 
               owners={ownersData.data} 
               tenants={tenantsData.data} 
@@ -191,13 +215,6 @@ const Index = () => {
               expenses={expensesData.data} 
               agency={agency} 
             />
-          </TabsContent>
-
-          <TabsContent value="admin">
-            <div className="max-w-2xl mx-auto space-y-8">
-              <AgencyForm agency={agency} setAgency={setAgency} />
-              <DataManagement />
-            </div>
           </TabsContent>
         </Tabs>
       </main>
