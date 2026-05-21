@@ -12,7 +12,7 @@ import { DataManagement } from '../components/DataManagement';
 import { useSupabaseData } from '../hooks/use-supabase-data';
 import { useLocalStorage } from '../hooks/use-local-storage';
 import { Owner, Tenant, Receipt, Expense, Agency, Arrear } from '../types/rental';
-import { Building2, Moon, Sun, Car, Wrench, LogOut, User as UserIcon } from 'lucide-react';
+import { Building2, Moon, Sun, Car, Wrench, LogOut, ShieldCheck } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
@@ -22,7 +22,7 @@ import { useAuth } from '../components/AuthProvider';
 
 const Index = () => {
   const { theme, setTheme } = useTheme();
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
 
   const ownersData = useSupabaseData<Owner>('owners');
   const tenantsData = useSupabaseData<Tenant>('tenants');
@@ -57,6 +57,15 @@ const Index = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {profile?.role === 'admin' && (
+            <Button variant="secondary" size="sm" asChild className="hidden md:flex mr-2 bg-red-600 hover:bg-red-700 text-white border-none shadow-md">
+              <Link to="/super-admin">
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                SUPER-ADMIN
+              </Link>
+            </Button>
+          )}
+
           <Button variant="secondary" size="sm" asChild className="hidden md:flex mr-2 bg-amber-500 hover:bg-amber-600 text-white border-none shadow-md">
             <Link to="/automobile">
               <Car className="w-4 h-4 mr-2" />
@@ -84,7 +93,15 @@ const Index = () => {
       </header>
 
       <main className="container max-w-6xl mx-auto p-4 md:p-8 space-y-8">
-        <div className="md:hidden flex justify-center mb-4">
+        <div className="md:hidden flex flex-col gap-2 mb-4">
+          {profile?.role === 'admin' && (
+            <Button variant="secondary" size="sm" asChild className="w-full bg-red-600 hover:bg-red-700 text-white border-none shadow-md">
+              <Link to="/super-admin">
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                SUPER-ADMIN
+              </Link>
+            </Button>
+          )}
           <Button variant="secondary" size="sm" asChild className="w-full bg-amber-500 hover:bg-amber-600 text-white border-none shadow-md">
             <Link to="/automobile">
               <Car className="w-4 h-4 mr-2" />
